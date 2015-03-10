@@ -42,6 +42,8 @@
 
 
 #include "ImplicitRBF.hh"
+#include "stdio.h"
+#include <iostream>
 
 
 //== IMPLEMENTATION ==========================================================
@@ -95,6 +97,7 @@ compute_implicit_RBF()
     Eigen::MatrixXd bb_min, bb_max, bb_diag;
 //    int minx, miny, minz, maxx, maxy, maxz;
 //    std::vector<size_t> pointx = ;
+    std::cout << "begin" << std::endl;
 
     bb_max = points_.rowwise().maxCoeff();
 
@@ -102,27 +105,39 @@ compute_implicit_RBF()
 
     bb_diag = bb_max - bb_min;
 
+    std::cout << "check" << std::endl;
+
     double bb_diagLength = bb_diag.norm();
 
+    std::cout << "check" << std::endl;
+
     double offset = bb_diagLength*0.001;
+    std::cout << "check" << std::endl;
+
     for (int i = 0; i< n; ++i)
     {
         centers_.col(2*i) = points_.col(i);
-        centers_.col(2*i - 1) = points_.col(i) + offset*normals_.col(i);
+        centers_.col(2*i + 1) = points_.col(i) + offset*normals_.col(i);
+        std::cout << "OK" << std::endl;
     }
 
-    for (int i = 0; i< N; ++i)
+    for (int i = 0; i< n; ++i)
     {
-         d(i) = ImplicitRBF::kernel(centers_.col(i), normals_.col(i));
+         d(i) = ImplicitRBF::kernel(centers_.col(2*i), normals_.col(i));
     }
+
+    std::cout << "diiiicks" << std::endl;
+
     for (int i = 0; i<N; ++i)
     {
         for (int j = 0; j<N; ++j)
         {
-            M(i,j) = (centers_.col(i) - centers_.col(j)).norm();
+            Vector3d tmp = centers_.col(i) - centers_.col(j);
+            M(i,j) = tmp.norm();
         }
     }
 
+    std::cout << "solve" << std::endl;
     ImplicitRBF::solve_linear_system(M,d,weights_);
 }
 
