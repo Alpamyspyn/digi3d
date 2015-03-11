@@ -42,8 +42,6 @@
 
 
 #include "ImplicitRBF.hh"
-#include "stdio.h"
-#include <iostream>
 
 
 //== IMPLEMENTATION ==========================================================
@@ -91,54 +89,40 @@ compute_implicit_RBF()
     // 3) Use the memeber function solve_linear_system(...) to solve the linear system
     //    to obtain RBF weights, and store them in the data member weights_.
 
-
     // Bounding Box Diagonal
 
-    Eigen::MatrixXd bb_min, bb_max, bb_diag;
-//    int minx, miny, minz, maxx, maxy, maxz;
-//    std::vector<size_t> pointx = ;
-    std::cout << "begin" << std::endl;
+       Eigen::MatrixXd bb_min, bb_max, bb_diag;
 
-    bb_max = points_.rowwise().maxCoeff();
+       bb_max = points_.rowwise().maxCoeff();
 
-    bb_min = points_.rowwise().minCoeff();
+       bb_min = points_.rowwise().minCoeff();
 
-    bb_diag = bb_max - bb_min;
+       bb_diag = bb_max - bb_min;
 
-    std::cout << "check" << std::endl;
+       double bb_diagLength = bb_diag.norm();
 
-    double bb_diagLength = bb_diag.norm();
+       double offset = bb_diagLength*0.001;
 
-    std::cout << "check" << std::endl;
+       for (int i = 0; i< n; ++i)
+       {
+           centers_.col(i) = points_.col(i);
+           centers_.col(n + i) = points_.col(i) + offset*normals_.col(i);
+       }
 
-    double offset = bb_diagLength*0.001;
-    std::cout << "check" << std::endl;
+       for (int i = 0; i< n; ++i)
+       {
+            d(i) = 0;
+            d(n+i) = offset;
+       }
 
-    for (int i = 0; i< n; ++i)
-    {
-        centers_.col(2*i) = points_.col(i);
-        centers_.col(2*i + 1) = points_.col(i) + offset*normals_.col(i);
-        std::cout << "OK" << std::endl;
-    }
-
-    for (int i = 0; i< n; ++i)
-    {
-         d(i) = ImplicitRBF::kernel(centers_.col(2*i), normals_.col(i));
-    }
-
-    std::cout << "diiiicks" << std::endl;
-
-    for (int i = 0; i<N; ++i)
-    {
-        for (int j = 0; j<N; ++j)
-        {
-            Vector3d tmp = centers_.col(i) - centers_.col(j);
-            M(i,j) = tmp.norm();
-        }
-    }
-
-    std::cout << "solve" << std::endl;
-    ImplicitRBF::solve_linear_system(M,d,weights_);
+       for (int i = 0; i<N; ++i)
+       {
+           for (int j = 0; j<N; ++j)
+           {
+               M(i,j) = ImplicitRBF::kernel(centers_.col(i), centers_.col(j));
+           }
+       }
+       ImplicitRBF::solve_linear_system(M,d,weights_);
 }
 
 
