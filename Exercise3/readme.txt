@@ -7,7 +7,7 @@ Use a vertex iterator and vertex around vertex circulator to go through the neig
 
 Exercise 3.2 Laplace-Beltrami
 
-We use a vertex iterator and halfedge around vertex circulator to iterate through the set of half edges for each vertex in the mesh. For each vertex, 
+We use a vertex iterator and halfedge around vertex circulator to iterate through the set of half edges for each vertex in the mesh. For each halfedge, of the current vertex we determine the neighbour vertex it is pointing at. We then use the precalculated (edge)weights to produce the sum of the Laplaceian and eventually multiply this sum with the precalculated (vertex)weights, where the (edge)weights represent the the sum of the angles of the sum within the Laplacian and the (vertex)weight represent the area around the current vertex. Finally, we store the half of the resulting vector as the approximation of the Laplace-Beltrami curvature.
 
 Exercise 3.3 Triangle Shape
 
