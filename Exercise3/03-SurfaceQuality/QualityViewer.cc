@@ -222,7 +222,8 @@ calc_weights()
         vf_c = mesh_.faces(*v_it);
         vf_end = vf_c;
 
-        do{
+        do
+        {
             fv_c = mesh_.vertices(*vf_c);
 
             const Point& P = mesh_.position(*fv_c);  ++fv_c;
@@ -231,7 +232,8 @@ calc_weights()
 
             area += norm(cross(Q-P, R-P)) * 0.5f * 0.3333f;
 
-        }while(++vf_c != vf_end);
+        }
+        while(++vf_c != vf_end);
 
         vweight_[*v_it]=0.5/area;
 	}
@@ -272,7 +274,8 @@ calc_mean_curvature()
             neighbor_v = mesh_.to_vertex(*vh_c);
 
             laplace += eweight_[e] * (mesh_.position(neighbor_v) - mesh_.position(*v_it));
-        }while(++vh_c!=vh_end);
+        }
+        while(++vh_c!=vh_end);
 
         vcurvature_[*v_it] = 0.5 * norm(vweight_[*v_it] * laplace);
     }
@@ -309,7 +312,8 @@ calc_uniform_mean_curvature()
         {
             n++;
             laplace += mesh_.position(*vv_c) - mesh_.position(*v_it);
-        }while(++vv_c != vv_end);
+        }
+        while(++vv_c != vv_end);
 
         vunicurvature_[*v_it] = 0.5*norm(laplace/n);
 
@@ -334,6 +338,32 @@ calc_gauss_curvature()
     // you pass to the acos function is between -1.0 and 1.0.
     // Use the vweight_ property for the area weight.
     // ------------- IMPLEMENT HERE ---------
+
+    for(v_it=mesh_.vertices_begin();v_it!=v_end;++v_it)
+    {
+        vv_c = mesh_.vertices(*v_it);
+        vv_end = vv_c;
+        angles = 0.0;
+
+        do
+        {
+            vv_c2 = vv_c;
+            vv_c++;
+
+            d0 = normalize(mesh_.position(*v_it) - mesh_.position(*vv_c));
+            d1 = normalize(mesh_.position(*v_it) - mesh_.position(*vv_c2));
+
+            cos_angle = dot(d0, d1);
+
+            cos_angle = std::max(lb, cos_angle);
+            cos_angle = std::min(ub, cos_angle);
+
+            angles += acos(cos_angle);
+        }
+        while(vv_c!=vv_end);
+
+        vgausscurvature_[*v_it] = (2 * M_PI - angles) * (2 * vweight_[*v_it]);
+    }
 
 }
 
@@ -377,7 +407,7 @@ calc_triangle_quality()
 
         // compute triangle circumradius
         denom = norm(cross(v0v1, v0v2));
-        if(denom <= 0)
+        if(denom < FLT_MIN)
         {
             tshape_[*f_it] = FLT_MAX;
         }
