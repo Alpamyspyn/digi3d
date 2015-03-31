@@ -142,8 +142,11 @@ void  split_long_edges() {
 	bool            finished;
 	int             i;
 
+    std::printf("Splitting edges...\n");
+
 	for (finished = false, i = 0; !finished && i < 100; ++i) {
 		finished = true;
+        std::printf("Iteration: %d\n", i);
 
 		for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
             // -----------------------------------------------------------
@@ -185,8 +188,12 @@ void  collapse_short_edges() {
 	int             i;
 	bool            hcol01, hcol10;
 
+    std::printf("Collapsing short edges...\n");
+
 	for (finished = false, i = 0; !finished && i < 100; ++i) {
         finished = true;
+
+        std::printf("Iteration: %d\n", i);
 
 		for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
 			if (!mesh.is_deleted(*e_it)) // might already be deleted
@@ -258,9 +265,13 @@ void  equalize_valences() {
 	int i;
 
 
+    std::printf("Equalising valences...\n");
+
 	// flip all edges
 	for (finished = false, i = 0; !finished && i < 100; ++i) {
 		finished = true;
+
+        std::printf("Iteration: %d\n", i);
 
 		for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
 			if (!mesh.is_boundary(*e_it)) {
@@ -328,7 +339,7 @@ void  equalize_valences() {
 		}
 	}
 
-	if (i == 100) std::cerr << "flip break\n";
+    if (i == 100) std::cerr << "flip break\n";
 }
 
 
@@ -341,7 +352,9 @@ void  tangential_relaxation() {
 
 
 	// smooth
+    std::printf("Tabgential relaxation...\n");
 	for (int iters = 0; iters < 10; ++iters) {
+        std::printf("Iteration: %d\n", iters);
 		for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it) {
 			if (!mesh.is_boundary(*v_it)) {
                 // -----------------------------------------------------------
@@ -351,8 +364,24 @@ void  tangential_relaxation() {
 				//  3) Store smoothed vertex location in the update vertex property.
 				//     (you don't have to use 1/2 attenuation in this case, it's fine without attenuation)
 				// -----------------------------------------------------------
-			}
-		}
+
+                laplace = Point(0.0);
+                valence = 0;
+                vv_c = mesh.vertices(*v_it);
+                vv_end = vv_c;
+
+                do{
+                    laplace += (mesh.position(*vv_c) - mesh.position(*v_it));
+                    ++valence;
+                }while(++vv_c != vv_end);
+
+                laplace /= valence;
+                n = get_normal(*v_it);
+                u = laplace - dot(laplace,n)*n;
+                update[*v_it] = u;
+                }
+
+            }
 
 		for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
 			if (!mesh.is_boundary(*v_it))
@@ -369,31 +398,74 @@ void calc_target_length() {
 	Scalar H;
 	Scalar K;
 
+    std::printf("calculating target length...\n");
+
 
     // -----------------------------------------------------------
 	// INSERT CODE:
 	//  1) Get the maximal curvature at each vertex (use the precomputed mean (property: vcurvature_) and gaussian curvature (property: vgausscurvature_))
 	//  2) Calculate the desired edge length as the target_length divided by the maximal curvature at each vertex, and assign it to the property vtargetlength_
 	//  2) Smooth the maximal curvature uniformly, use the property vnewtargetlength_ to store the smoothed values intermediately
-	//  3) Rescale the property vtargetlength_ such that it's mean equals the user specified target_length
+    //  3) Rescale the property vtargetlength_ such that its mean equals the user specified target_length
 	// -----------------------------------------------------------
 
 	// calculate desired length
 	for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it) {
 		length = 1.0;
 		if (!mesh.is_boundary(*v_it)) {
-			// 1)
+            // 1)
+            H = vcurvature_[*v_it];
+            K = vgausscurvature_[*v_it];
+            length = target_length / (H + sqrt(pow(H,2) - K));
 		}
         vtargetlength_[*v_it] = length;
 	}
 
 	// smooth desired length
 	for (int i = 0; i < 5; i++) {
-		// 2)
+
+        // 2)
+        for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+        {
+            if(!mesh.is_boundary(*v_it))
+                continue;
+
+            Scalar laplacian = 0.0;
+            int n = 0;
+
+            vv_c = mesh.vertices(*v_it);
+            vv_end = vv_c;
+            do
+            {
+                laplacian += vtargetlength_[*vv_c] - vtargetlength_[*v_it];
+                ++n;
+            }
+            while(++vv_c != vv_end);
+
+            laplacian /= n;
+            vnewtargetlength_[*v_it] = vtargetlength_ + 0.5 * laplacian;
+
+        }
+
+        vtargetlength_ = vnewtargetlength_;
+
 	}
+
 
 	// rescale desired length:
 	// 3)
+
+    mean_length = 0.0;
+
+    for(v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+    {
+        mean_length += vtargetlength_[*v_it];
+    }
+
+    for(v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+    {
+        vtargetlength_[*v_it] *= target_length / mean_length;
+    }
 }
 
 
