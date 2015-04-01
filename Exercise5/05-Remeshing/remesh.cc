@@ -144,9 +144,9 @@ void  split_long_edges() {
 
     std::printf("Splitting edges...\n");
 
-	for (finished = false, i = 0; !finished && i < 100; ++i) {
+    for (finished = false, i = 0; !finished && i < 100; ++i) {
 		finished = true;
-        std::printf("Iteration: %d\n", i);
+        std::printf("Iteration: %d; num_edges: %d\n", i, mesh.n_edges());
 
 		for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
             // -----------------------------------------------------------
@@ -158,24 +158,33 @@ void  split_long_edges() {
 			//		4) split the edge with this vertex (use openMesh function split)
 			// Leave the loop running until no splits are done (use the finished variable)
 			// -----------------------------------------------------------
-        v0 = mesh.vertex(*e_it, 0);
-        v1 = mesh.vertex(*e_it, 1);
+            v0 = mesh.vertex(*e_it, 0);
+            v1 = mesh.vertex(*e_it, 1);
 
-        float dlength = (vtargetlength_[v0] + vtargetlength_[v1])/2;
-        if (mesh.edge_length(*e_it) > (4/3)*dlength)
-        {
-            Point mid = mesh.position(v0) + (mesh.position(v1) - mesh.position(v0))/2;
-            Mesh::Vertex v = mesh.add_vertex(mid);
+            //printf("(target_v1, target_v2) = (%f, %f)\n", vtargetlength_[v0], vtargetlength_[v1]);
+            float dlength = 0.5f * (vtargetlength_[v0] + vtargetlength_[v1]);
+            // printf("desired: %f - length: %f \n",dlength,mesh.edge_length(*e_it));
+            if (mesh.edge_length(*e_it) > (4.0f/3.0f) * dlength)
+            {
+                //printf("desired: %f - length: %f \n",dlength,mesh.edge_length(*e_it));
+                Point mid = mesh.position(v0) + (mesh.position(v1) - mesh.position(v0))/2;
+                Mesh::Vertex v = mesh.add_vertex(mid);
 
-            set_normal(v,((get_normal(v0)+get_normal(v1))/2).normalize());
-            vtargetlength_[v] = (vtargetlength_[v0]+vtargetlength_[v1])/2;
+                set_normal(v,((get_normal(v0)+get_normal(v1))/2.0f).normalize());
+                vtargetlength_[v] = (vtargetlength_[v0]+vtargetlength_[v1])/2.0f;
 
-            mesh.split(*e_it, v);
+                mesh.split(*e_it, v);
 
-            finished = false;
+                mesh.remove_edge(mesh.halfedge(*e_it,0));
+                mesh.remove_edge(mesh.halfedge(*e_it,1));
+
+                finished = false;
+            }
+
+
         }
 
-        }
+        mesh.garbage_collection();
 	}
 }
 
@@ -215,7 +224,10 @@ void  collapse_short_edges() {
                 h01 = mesh.halfedge(*e_it,0);
                 h10 = mesh.halfedge(*e_it,1);
 
-                if( (4/5)*(vtargetlength_[v0] + vtargetlength_[v1])/2 > mesh.edge_length(*e_it))
+                Scalar mean = (vtargetlength_[v0] + vtargetlength_[v1])/2;
+                Scalar desired = mesh.edge_length(*e_it);
+
+                if( (4.0/5.0)*mean > desired)
                 {
                     h01 = mesh.halfedge(*e_it,0);
                     h10 = mesh.halfedge(*e_it,1);
@@ -228,15 +240,23 @@ void  collapse_short_edges() {
 
                     if(hcol01)
                     {
-                        if(hcol10)
+                        if(hcol10){
                             if(mesh.valence(v0) > mesh.valence(v1))
+                            {
                                 mesh.collapse(h10);
+                                finished = false;
+                            }
                             else
+                            {
                                 mesh.collapse(h01);
+                                finished = false;
+                            }
+                        }
                         else
+                        {
                             mesh.collapse(h01);
-
-                        finished = false;
+                            finished = false;
+                        }
                     }
                     else if(hcol10)
                     {
@@ -274,7 +294,7 @@ void  equalize_valences() {
         std::printf("Iteration: %d\n", i);
 
 		for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
-			if (!mesh.is_boundary(*e_it)) {
+            if (!mesh.is_boundary(*e_it)) {
                 // -----------------------------------------------------------
 				// INSERT CODE:
 				//  1) Extract valences of the four vertices involved to an eventual flip.
@@ -352,11 +372,11 @@ void  tangential_relaxation() {
 
 
 	// smooth
-    std::printf("Tabgential relaxation...\n");
+    std::printf("Tangential relaxation...\n");
 	for (int iters = 0; iters < 10; ++iters) {
         std::printf("Iteration: %d\n", iters);
 		for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it) {
-			if (!mesh.is_boundary(*v_it)) {
+            if (!mesh.is_boundary(*v_it)) {
                 // -----------------------------------------------------------
 				// INSERT CODE:
 				//  1) Compute uniform laplacian curvature approximation vector
@@ -395,7 +415,7 @@ void calc_target_length() {
 	Mesh::Vertex_around_vertex_circulator vv_c, vv_end;
 	Scalar length;
 	Scalar mean_length;
-	Scalar H;
+    Scalar H;
 	Scalar K;
 
     std::printf("calculating target length...\n");
@@ -416,8 +436,15 @@ void calc_target_length() {
             // 1)
             H = vcurvature_[*v_it];
             K = vgausscurvature_[*v_it];
-            length = target_length / (H + sqrt(pow(H,2) - K));
+            length = target_length;
+            if (pow(H,2) - K >= 0.0)
+                    length = length/(H+sqrt(pow(H,2) - K));
+            else
+                    length = length/H;
 		}
+
+
+        //printf("dlength = %f \n",length);
         vtargetlength_[*v_it] = length;
 	}
 
@@ -427,7 +454,7 @@ void calc_target_length() {
         // 2)
         for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
         {
-            if(!mesh.is_boundary(*v_it))
+            if(mesh.is_boundary(*v_it))
                 continue;
 
             Scalar laplacian = 0.0;
@@ -443,11 +470,16 @@ void calc_target_length() {
             while(++vv_c != vv_end);
 
             laplacian /= n;
-            vnewtargetlength_[*v_it] = vtargetlength_ + 0.5 * laplacian;
+        //    printf("targetlength = %f \n",vtargetlength_[*v_it]);
+            vnewtargetlength_[*v_it] = vtargetlength_[*v_it] + 0.5 * laplacian;
 
         }
 
-        vtargetlength_ = vnewtargetlength_;
+
+        for(v_it=mesh.vertices_begin(); v_it!=v_end;++v_it)
+        {
+            vtargetlength_[*v_it] = vnewtargetlength_[*v_it];
+        }
 
 	}
 
@@ -462,9 +494,12 @@ void calc_target_length() {
         mean_length += vtargetlength_[*v_it];
     }
 
+    mean_length /= mesh.n_vertices();
+
     for(v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
     {
         vtargetlength_[*v_it] *= target_length / mean_length;
+      //  printf("scaled target length: %f \n", vtargetlength_[*v_it]);
     }
 }
 
