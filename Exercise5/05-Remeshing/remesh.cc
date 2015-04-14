@@ -123,8 +123,8 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < 5; ++i) {
 		split_long_edges();
 		collapse_short_edges();
-		equalize_valences();
-		tangential_relaxation();
+        equalize_valences();
+        tangential_relaxation();
 	}
 
 
@@ -146,7 +146,7 @@ void  split_long_edges() {
 
     for (finished = false, i = 0; !finished && i < 100; ++i) {
 		finished = true;
-        std::printf("Iteration: %d; num_edges: %d\n", i, mesh.n_edges());
+        std::printf("Iteration: %d; num_vertices: %d\n", i, mesh.n_vertices());
 
 		for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
             // -----------------------------------------------------------
@@ -158,25 +158,38 @@ void  split_long_edges() {
 			//		4) split the edge with this vertex (use openMesh function split)
 			// Leave the loop running until no splits are done (use the finished variable)
 			// -----------------------------------------------------------
+
+            // fetch vertices of the edge
             v0 = mesh.vertex(*e_it, 0);
             v1 = mesh.vertex(*e_it, 1);
 
+            // calculate desired edge length
+            float desired_length = 0.5f * (vtargetlength_[v0] + vtargetlength_[v1]);
             //printf("(target_v1, target_v2) = (%f, %f)\n", vtargetlength_[v0], vtargetlength_[v1]);
-            float dlength = 0.5f * (vtargetlength_[v0] + vtargetlength_[v1]);
-            // printf("desired: %f - length: %f \n",dlength,mesh.edge_length(*e_it));
-            if (mesh.edge_length(*e_it) > (4.0f/3.0f) * dlength)
+            //printf("desired: %f - length: %f \n",desired_length,mesh.edge_length(*e_it));
+            if (mesh.edge_length(*e_it) > (4.0f / 3.0f) * desired_length)
             {
                 //printf("desired: %f - length: %f \n",dlength,mesh.edge_length(*e_it));
-                Point mid = mesh.position(v0) + (mesh.position(v1) - mesh.position(v0))/2;
+
+                // calculate position of the new vertex
+                Point mid = mesh.position(v0) + (mesh.position(v1) - mesh.position(v0)) / 2.0f;
+                // add it to the mesh
                 Mesh::Vertex v = mesh.add_vertex(mid);
 
-                set_normal(v,((get_normal(v0)+get_normal(v1))/2.0f).normalize());
-                vtargetlength_[v] = (vtargetlength_[v0]+vtargetlength_[v1])/2.0f;
+                // interpolate normal andtargetlenth of the new vertex
+                set_normal(v, (get_normal(v0) + get_normal(v1)) / 2.0f);//.normalize());
+                vtargetlength_[v] = (vtargetlength_[v0] + vtargetlength_[v1]) / 2.0f;
 
+                //printf("new target length: %f \n", get_normal(v));
+
+                // split the edge
                 mesh.split(*e_it, v);
 
-                mesh.remove_edge(mesh.halfedge(*e_it,0));
-                mesh.remove_edge(mesh.halfedge(*e_it,1));
+
+                //printf("edge length: %f \n", mesh.edge_length(mesh.find_edge(v, v0)));
+                //printf("edge length: %f \n", mesh.edge_length(mesh.find_edge(v, v1)));
+                //printf("edge length: %f \n", mesh.edge_length(mesh.find_edge(v, v2)));
+                //printf("edge length: %f \n", mesh.edge_length(mesh.find_edge(v, v3)));
 
                 finished = false;
             }
@@ -184,7 +197,7 @@ void  split_long_edges() {
 
         }
 
-        mesh.garbage_collection();
+       // mesh.garbage_collection();
 	}
 }
 
@@ -199,13 +212,15 @@ void  collapse_short_edges() {
 
     std::printf("Collapsing short edges...\n");
 
-	for (finished = false, i = 0; !finished && i < 100; ++i) {
+    for (finished = false, i = 0; !finished && i < 100; ++i)
+    {
         finished = true;
 
-        std::printf("Iteration: %d\n", i);
+        std::printf("Iteration: %d; num_vertices: %d\n", i, mesh.n_vertices());
 
-		for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
-			if (!mesh.is_deleted(*e_it)) // might already be deleted
+        for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it)
+        {
+            if (!mesh.is_deleted(*e_it)) // might already be deleted
 			{
                 // -----------------------------------------------------------
 				// INSERT CODE:
@@ -216,25 +231,29 @@ void  collapse_short_edges() {
 				//		4) Select the halfedge to be collapsed if at least one halfedge can be collapsed
 				//		5) Collapse the halfedge
 				// Leave the loop running until no collapse has been done (use the finished variable)
-				// -----------------------------------------------------------
+                // -----------------------------------------------------------
 
-                v0 = mesh.vertex(*e_it, 0);
-                v1 = mesh.vertex(*e_it, 1);
-
+                // fetch both halfedges of the current edge
                 h01 = mesh.halfedge(*e_it,0);
                 h10 = mesh.halfedge(*e_it,1);
 
-                Scalar mean = (vtargetlength_[v0] + vtargetlength_[v1])/2;
-                Scalar desired = mesh.edge_length(*e_it);
+                // fetch both vertices of the current edge
+                v0 = mesh.from_vertex(h01);
+                v1 = mesh.from_vertex(h10);
 
-                if( (4.0/5.0)*mean > desired)
+              //  printf("edge length: %f\n", mesh.edge_length(*e_it));
+
+                // calculate desired edge length
+                Scalar desired_length = (vtargetlength_[v0] + vtargetlength_[v1]) / 2.0f;
+
+                // collapse edge if condition is met
+                if(0.8f * desired_length > mesh.edge_length(*e_it))
                 {
-                    h01 = mesh.halfedge(*e_it,0);
-                    h10 = mesh.halfedge(*e_it,1);
+                    // check if halfedge is from boundary vertex to non-boundary vertex
+                    b0 = mesh.is_boundary(v0) && !mesh.is_boundary(v1);
+                    b1 = mesh.is_boundary(v1) && !mesh.is_boundary(v0);
 
-                    b0 = !mesh.is_boundary(mesh.from_vertex(h01)) && mesh.is_boundary(mesh.to_vertex(h01));
-                    b1 = !mesh.is_boundary(mesh.from_vertex(h10)) && mesh.is_boundary(mesh.to_vertex(h10));
-
+                    // check if halfedge is collapsable
                     hcol01 = mesh.is_collapse_ok(h01) && !b0;
                     hcol10 = mesh.is_collapse_ok(h10) && !b1;
 
@@ -288,13 +307,16 @@ void  equalize_valences() {
     std::printf("Equalising valences...\n");
 
 	// flip all edges
-	for (finished = false, i = 0; !finished && i < 100; ++i) {
+    for (finished = false, i = 0; !finished && i < 100; ++i)
+    {
 		finished = true;
 
         std::printf("Iteration: %d\n", i);
 
-		for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
-            if (!mesh.is_boundary(*e_it)) {
+        for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it)
+        {
+            if (!mesh.is_boundary(*e_it))
+            {
                 // -----------------------------------------------------------
 				// INSERT CODE:
 				//  1) Extract valences of the four vertices involved to an eventual flip.
@@ -307,12 +329,14 @@ void  equalize_valences() {
                 if(!mesh.is_flip_ok(*e_it))
                     continue;
 
-                v0 = mesh.vertex(*e_it, 0);
-                v1 = mesh.vertex(*e_it, 1);
-                h = mesh.next_halfedge(mesh.halfedge(*e_it, 0));
-                v2 = mesh.to_vertex(h);
-                h = mesh.next_halfedge(mesh.halfedge(*e_it, 1));
-                v3 = mesh.to_vertex(h);
+                h = mesh.halfedge(*e_it, 0);
+                v0 = mesh.from_vertex(h);
+                v1 = mesh.to_vertex(h);
+
+                v2 = mesh.to_vertex(mesh.next_halfedge(h));
+
+                h = mesh.opposite_halfedge(h);
+                v3 = mesh.to_vertex(mesh.next_halfedge(h));
 
                 val0 = mesh.valence(v0);
                 val1 = mesh.valence(v1);
@@ -324,36 +348,29 @@ void  equalize_valences() {
                 val_opt2 = mesh.is_boundary(v2) ? 4 : 6;
                 val_opt3 = mesh.is_boundary(v3) ? 4 : 6;
 
-                ve0 = (val0 - val_opt0)^2;
-                ve1 = (val1 - val_opt1)^2;
-                ve2 = (val2 - val_opt2)^2;
-                ve3 = (val3 - val_opt3)^2;
+                ve0 = val0 - val_opt0;
+                ve1 = val1 - val_opt1;
+                ve2 = val2 - val_opt2;
+                ve3 = val3 - val_opt3;
 
-                ve_before = ve0 + ve1 + ve2 + ve3;
+                ve_before = pow(ve0,2) + pow(ve1,2) + pow(ve2,2) + pow(ve3,2);
 
-                mesh.flip(*e_it);
+                ve0 = val0 - 1 - val_opt0;
+                ve1 = val1 - 1 - val_opt1;
+                ve2 = val2 + 1 - val_opt2;
+                ve3 = val3 + 1 - val_opt3;
 
-                val0 = mesh.valence(v0);
-                val1 = mesh.valence(v1);
-                val2 = mesh.valence(v2);
-                val3 = mesh.valence(v3);
+                ve_after = pow(ve0,2) + pow(ve1,2) + pow(ve2,2) + pow(ve3,2);
 
-                val_opt0 = mesh.is_boundary(v0) ? 4 : 6;
-                val_opt1 = mesh.is_boundary(v1) ? 4 : 6;
-                val_opt2 = mesh.is_boundary(v2) ? 4 : 6;
-                val_opt3 = mesh.is_boundary(v3) ? 4 : 6;
-
-                ve0 = (val0 - val_opt0)^2;
-                ve1 = (val1 - val_opt1)^2;
-                ve2 = (val2 - val_opt2)^2;
-                ve3 = (val3 - val_opt3)^2;
-
-                ve_after = ve0 + ve1 + ve2 + ve3;
-
-                if(ve_after > ve_before)
+                if(ve_after < ve_before)
+                {
                     mesh.flip(*e_it);
-                else
+                    //printf("before: %d, after: %d ---> flip\n", ve_before, ve_after);
                     finished = false;
+                }
+
+                    //printf("before: %d, after: %d ---> no flip\n", ve_before, ve_after);
+
 
 			}
 		}
@@ -371,19 +388,22 @@ void  tangential_relaxation() {
 	Point     laplace;
 
 
-	// smooth
+    // smooth
     std::printf("Tangential relaxation...\n");
-	for (int iters = 0; iters < 10; ++iters) {
+    for (int iters = 0; iters < 10; ++iters)
+    {
         std::printf("Iteration: %d\n", iters);
-		for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it) {
-            if (!mesh.is_boundary(*v_it)) {
+        for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+        {
+            if (!mesh.is_boundary(*v_it))
+            {
                 // -----------------------------------------------------------
-				// INSERT CODE:
-				//  1) Compute uniform laplacian curvature approximation vector
-				//  2) Compute the tangential component of the laplacian vector and move the vertex
-				//  3) Store smoothed vertex location in the update vertex property.
-				//     (you don't have to use 1/2 attenuation in this case, it's fine without attenuation)
-				// -----------------------------------------------------------
+                // INSERT CODE:
+                //  1) Compute uniform laplacian curvature approximation vector
+                //  2) Compute the tangential component of the laplacian vector and move the vertex
+                //  3) Store smoothed vertex location in the update vertex property.
+                //     (you don't have to use 1/2 attenuation in this case, it's fine without attenuation)
+                // -----------------------------------------------------------
 
                 laplace = Point(0.0);
                 valence = 0;
@@ -396,17 +416,19 @@ void  tangential_relaxation() {
                 }while(++vv_c != vv_end);
 
                 laplace /= valence;
+
                 n = get_normal(*v_it);
+
                 u = laplace - dot(laplace,n)*n;
+
                 update[*v_it] = u;
-                }
-
             }
+        }
 
-		for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
-			if (!mesh.is_boundary(*v_it))
-				mesh.position(*v_it) += update[*v_it];
-	}
+        for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+            if (!mesh.is_boundary(*v_it))
+                mesh.position(*v_it) += update[*v_it];
+    }
 }
 
 
@@ -430,26 +452,29 @@ void calc_target_length() {
 	// -----------------------------------------------------------
 
 	// calculate desired length
-	for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it) {
+    for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+    {
 		length = 1.0;
-		if (!mesh.is_boundary(*v_it)) {
+        if (!mesh.is_boundary(*v_it))
+        {
             // 1)
             H = vcurvature_[*v_it];
             K = vgausscurvature_[*v_it];
             length = target_length;
-            if (pow(H,2) - K >= 0.0)
-                    length = length/(H+sqrt(pow(H,2) - K));
+
+            if (pow(H, 2) - K >= 0.0)
+                    length /= H + sqrt(pow(H ,2) - K);
             else
-                    length = length/H;
+                    length /= H;
 		}
 
 
-        //printf("dlength = %f \n",length);
         vtargetlength_[*v_it] = length;
 	}
 
 	// smooth desired length
-	for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; i++)
+    {
 
         // 2)
         for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
@@ -470,16 +495,13 @@ void calc_target_length() {
             while(++vv_c != vv_end);
 
             laplacian /= n;
-        //    printf("targetlength = %f \n",vtargetlength_[*v_it]);
             vnewtargetlength_[*v_it] = vtargetlength_[*v_it] + 0.5 * laplacian;
 
         }
 
 
         for(v_it=mesh.vertices_begin(); v_it!=v_end;++v_it)
-        {
             vtargetlength_[*v_it] = vnewtargetlength_[*v_it];
-        }
 
 	}
 
@@ -490,16 +512,14 @@ void calc_target_length() {
     mean_length = 0.0;
 
     for(v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
-    {
         mean_length += vtargetlength_[*v_it];
-    }
 
     mean_length /= mesh.n_vertices();
 
     for(v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
     {
-        vtargetlength_[*v_it] *= target_length / mean_length;
-      //  printf("scaled target length: %f \n", vtargetlength_[*v_it]);
+        //vtargetlength_[*v_it] *= target_length / mean_length;
+        vtargetlength_[*v_it] = target_length;
     }
 }
 
@@ -516,7 +536,8 @@ void calc_weights() {
 
 
 
-	for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it) {
+    for (e_it = mesh.edges_begin(); e_it != e_end; ++e_it)
+    {
 		w = 0.0;
 
 		h0 = mesh.halfedge(*e_it, 0);
@@ -544,7 +565,8 @@ void calc_weights() {
 	}
 
 
-	for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it) {
+    for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+    {
 		area = 0.0;
 		vf_c = mesh.faces(*v_it);
 		vf_end = vf_c;
