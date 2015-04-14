@@ -37,6 +37,6 @@ The derivatives of the component rotation matrices are then defined as below, by
 
  The b vector is given as follows: target_normal_transpose * (source_vertex - target_vertex).
 
- We initially had problems with divergence of the alignment by setting the b vector equal to normals*(rotation*source + translation - target)), as seemingly implied by the notes (b vector = f(x_t - 1)), and eventually after additional research found that the definition above caused the meshes to align properly.
+ We initially had problems with divergence of the alignment by setting the b vector equal to normals*(rotation*source + translation - target)), as seemingly implied by the notes (b vector = f(x_t - 1)), and eventually after additional research found that the definition above caused the meshes to align properly - as this is the correct point-to-plane error estimator.
 
  This Jacobian and b vector are then passed to the solver to perform the least squares analysis and rigid alignment.
