@@ -184,7 +184,8 @@ compute_incremental_transformation (const PointCloudMatrix &vertices_src,
 
   for(size_t i = 0; i < n_corresps; ++i)
   {
-      b(i) = normals_tgt.col(corresps.at(i).second).transpose() * (rotation * vertices_src.col(corresps.at(i).first) + translation - vertices_tgt.col(corresps.at(i).second));
+      //b(i) = normals_tgt.col(corresps.at(i).second).transpose() * (rotation * vertices_src.col(corresps.at(i).first) + translation - vertices_tgt.col(corresps.at(i).second));
+      b(i) = normals_tgt.col(corresps.at(i).second).transpose() * (vertices_src.col(corresps.at(i).first) - vertices_tgt.col(corresps.at(i).second));
 
       // rotation
       J(i,0) = normals_tgt.col(corresps.at(i).second).transpose() * rot_x * vertices_src.col(corresps.at(i).first);
