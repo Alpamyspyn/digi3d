@@ -173,7 +173,7 @@ compute_incremental_transformation (const PointCloudMatrix &vertices_src,
 
   Eigen::JacobiSVD<Eigen::Matrix3d> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
 
-  rotation = svd.matrixU() * svd.matrixU();
+  rotation = svd.matrixU() * svd.matrixV();
   translation = src_center  - rotation * tgt_center;
 
   Eigen::Matrix3d rot_x, rot_y, rot_z;
@@ -184,7 +184,6 @@ compute_incremental_transformation (const PointCloudMatrix &vertices_src,
 
   for(size_t i = 0; i < n_corresps; ++i)
   {
-      //b(i) = normals_tgt.col(corresps.at(i).second).transpose() * (rotation * vertices_src.col(corresps.at(i).first) + translation - vertices_tgt.col(corresps.at(i).second));
       b(i) = normals_tgt.col(corresps.at(i).second).transpose() * (vertices_src.col(corresps.at(i).first) - vertices_tgt.col(corresps.at(i).second));
 
       // rotation
