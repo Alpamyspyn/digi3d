@@ -327,6 +327,7 @@ compute_displacements (const Mesh &mesh_src,
         triplets.push_back(Eigen::Triplet<double>(i,c1*3+2,normals_tgt.col(c2).transpose()*jz));
 
     }
+
     J_distance.setFromTriplets(triplets.begin(), triplets.end());
 
     for (size_t i = 0; i<corresps.size(); ++i)
@@ -338,42 +339,84 @@ compute_displacements (const Mesh &mesh_src,
     std::cout << "  Closeness term"<< std::endl;
     Eigen::SparseMatrix<double> J_closeness (3 * vertices_src.cols (), 3 * vertices_src.cols ());
 
-    J_closeness = Eigen::MatrixXd::Identity(3 * vertices_src.cols (), 3 * vertices_src.cols ());
+ //   J_closeness = Eigen::MatrixXd::Identity(3 * vertices_src.cols (), 3 * vertices_src.cols ());
+    for (size_t i = 0; i<3*vertices_src.cols(); i++)
+    {
+        triplets.push_back(Eigen::Triplet<double>(i, i, 1.0));
+    }
+    J_closeness.setFromTriplets(triplets.begin(), triplets.end());
 
     std::cout << "  Smoothness term"<< std::endl;
     Eigen::SparseMatrix<double> J_smoothness (3 * vertices_src.cols (), 3 * vertices_src.cols ());
 
-    Eigen::Matrix3d submatrix = MatrixXd::Constant(3, 3, 1.0);
+//    Eigen::Matrix3d submatrix = Eigen::MatrixXd::Constant(3, 3, 1.0);
 
     Mesh::Vertex_around_vertex_circulator vv_c, vv_end;
-    for(size_t i=0; i<vertices_src.cols(); ++i)
+
+    std::vector<Eigen::Triplet<double> > triplets2;
+    for (Mesh::Vertex_iterator v_it = mesh_src.vertices_begin ();
+         v_it != mesh_src.vertices_end (); ++v_it)
     {
-        for(size_t j=0; j<vertices_src.cols(); ++i)
+        for (Mesh::Vertex_iterator v_itj = mesh_src.vertices_begin ();
+             v_itj != mesh_src.vertices_end (); ++v_itj)
         {
-            if (i==j)
+            if ( (*v_it).idx() == (*v_itj).idx() )
             {
                 size_t n_size = 0;
-                vv_c = vertices_src.col(i);
+                vv_c = mesh_src.vertices(*v_it);
                 vv_end = vv_c;
                 do{
                         n_size++;
+                        if ( (*vv_c).idx() == (*v_itj).idx() && (*vv_c).idx() != (*v_it).idx())
+                        {
+                            {
+                                for (size_t i = 0; i<3; i++)
+                                {
+                                    for (size_t j = 0; j<3; j++)
+                                    {
+                                        triplets2.push_back(Eigen::Triplet<double>(i+(*v_it).idx(), j+(*v_itj).idx(), 1.0));
+                                    }
+                                }
+                            }
+                        }
                   }while(++vv_c != vv_end);
-                J_smoothness.block(i,j,3,3) = n_size*submatrix;
-                break;
-            }
+           //     J_smoothness.block((*v_it).idx(),(*v_itj).idx(),3,3) = n_size*submatrix;
 
-            vv_c = vertices_src.col(i);
-            vv_end = vv_c;
-            do{
-                if(vv_c == vertices_src.col(j))
+                for (size_t i = 0; i<3; i++)
                 {
-                    J_smoothness.block(i,j,3,3) = submatrix;
-                    break;
+                    for (size_t j = 0; j<3; j++)
+                    {
+                        triplets2.push_back(Eigen::Triplet<double>(i+(*v_it).idx(), j+(*v_itj).idx(), ((double)n_size - 1) * -1.0));
+                    }
                 }
-            }while(++vv_c != vv_end);
-            J_smoothness.block(i,j,3,3) = 0*submatrix;
+            }
+//            vv_c = mesh_src.vertices(*v_it);
+//            vv_end = vv_c;
+
+//            do{
+//                if( (*vv_c).idx() == (*v_it).idx() )
+//                {
+//                    std::vector<Eigen::Triplet<double> > triplets2;
+//                    for (size_t i = 0; i<3; i++)
+//                    {
+//                        for (size_t j = 0; j<3; j++)
+//                        {
+//                            triplets2.push_back(Eigen::Triplet<double>(i+(*v_it).idx(), j+(*v_itj).idx(), 1.0));
+//                        }
+//                    }
+//                    break;
+//                }
+//            }while(++vv_c != vv_end);
         }
     }
+    J_smoothness.setFromTriplets(triplets2.begin(), triplets2.end());
+//    for(size_t i=0; i<vertices_src.cols(); ++i)
+//    {
+//        for(size_t j=0; j<vertices_src.cols(); ++i)
+//        {
+
+//        }
+//    }
 
 
     std::cout << "  Building the linear system"<< std::endl;
